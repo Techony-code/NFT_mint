@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { EthereumProvider } from '@walletconnect/ethereum-provider';
 
 // Your TieredNFT contract details
-const CONTRACT_ADDRESS = '0xD128Fb1Eccc093A66996D750D8Ca3b9eB6368787';  // Your new contract
+const CONTRACT_ADDRESS = '0xD128Fb1Eccc093A66996D750D8Ca3b9eB6368787';  // Your updated contract
 const ARBITRUM_SEPOLIA_CHAIN_ID = 421614;  // Testnet
 
 // ABI for your TieredNFT (embedded - no JSON file needed)
@@ -29,6 +30,8 @@ function App() {
   const [tokenId, setTokenId] = useState(null);  // Track minted ID
   const [showModal, setShowModal] = useState(false);  // For success modal
   const [availabilities, setAvailabilities] = useState({ normal: 0, regular: 0, vip: 0 });  // Track availability
+  const [showWalletSelector, setShowWalletSelector] = useState(false);  // For wallet options modal
+  const [wcProvider, setWcProvider] = useState(null);  // WalletConnect provider
 
   // Detect MetaMask
   useEffect(() => {
@@ -44,15 +47,15 @@ function App() {
     }
   }, []);
 
-  const connectWallet = async () => {
-    if (!window.ethereum) {
-      alert('MetaMask not detected! Install it or use a compatible wallet.');
+  // Connect MetaMask
+  const connectMetaMask = async () => {
+    if (!window.ethereum || !window.ethereum.isMetaMask) {
+      alert('MetaMask not detected! Install it from https://metamask.io');
       return;
     }
 
     try {
-      setLoading(true);
-      // Request accounts
+      setLoading(true); 
       await window.ethereum.request({ method: 'eth_requestAccounts' });
 
       const prov = new ethers.BrowserProvider(window.ethereum);
@@ -70,7 +73,6 @@ function App() {
             params: [{ chainId: '0xa36a' }],  // 421614 hex
           });
         } catch (switchError) {
-          // Add chain if not present
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
@@ -88,7 +90,7 @@ function App() {
       const cont = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
       setContract(cont);
 
-      // Load availability for all tiers
+      // Load availability
       const [normalAvail, regularAvail, vipAvail] = await Promise.all([
         cont.getTierAvailability(0),
         cont.getTierAvailability(1),
@@ -101,15 +103,70 @@ function App() {
       });
 
       setLoading(false);
+      setShowWalletSelector(false);
     } catch (error) {
-      console.error('Connection failed:', error);
-      alert('Failed to connect. Ensure MetaMask is on Arbitrum Sepolia.');
+      console.error('MetaMask connection failed:', error);
+      alert('MetaMask connection failed: ' + error.message);
       setLoading(false);
     }
   };
 
+  // Connect WalletConnect
+  const connectWalletConnect = async () => {
+    try {
+      setLoading(true);
+      const wcProv = await EthereumProvider.init({
+        projectId: '61efd98d83cf3e558386ad8ee07f5987',  // Replace with your real Project ID from cloud.walletconnect.com
+        metadata: {
+          name: 'Tiered NFT Minter',
+          description: 'Mint your NFTs',
+          url: 'https://your-site.com',
+          icons: ['https://your-site.com/icon.png']
+        },
+        chains: [ARBITRUM_SEPOLIA_CHAIN_ID],
+        showQrModal: true,
+      });
+
+      await wcProv.connect();
+      const prov = new ethers.BrowserProvider(wcProv);
+      const signer = await prov.getSigner();
+      const acc = await signer.getAddress();
+      setAccount(acc);
+      setProvider(prov);
+      setWcProvider(wcProv);
+
+      // Create contract instance
+      const cont = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      setContract(cont);
+
+      // Load availability
+      const [normalAvail, regularAvail, vipAvail] = await Promise.all([
+        cont.getTierAvailability(0),
+        cont.getTierAvailability(1),
+        cont.getTierAvailability(2)
+      ]);
+      setAvailabilities({
+        normal: Number(normalAvail),
+        regular: Number(regularAvail),
+        vip: Number(vipAvail)
+      });
+
+      setLoading(false);
+      setShowWalletSelector(false);
+    } catch (error) {
+      console.error('WalletConnect failed:', error);
+      alert('WalletConnect connection failed: ' + error.message);
+      setLoading(false);
+    }
+  };
+
+  // Open wallet selector
+  const openWalletSelector = () => {
+    setShowWalletSelector(true);
+  };
+
   const mintNFT = async () => {
-    if (!contract || !account) return alert('Connect MetaMask first!');
+    if (!contract || !account) return alert('Connect wallet first!');
     if (tier < 0 || tier > 2) return alert('Select a valid tier!');
 
     // Check availability
@@ -144,7 +201,7 @@ function App() {
       try {
         const tokenURI = await contract.tokenURI(newTokenId);
         if (!tokenURI || tokenURI === '') {
-          setImageUri('https://placehold.co/500x500/FF6B6B/FFFFFF?text=Image+Loading...');
+          setImageUri('https://via.placeholder.com/500x500?text=Metadata+Loading...');
           alert('NFT minted! Metadata loading...');
         } else {
           const ipfsGateway = 'https://ipfs.io/ipfs/';
@@ -206,22 +263,22 @@ function App() {
   return (
     <div className="app-container">
       <h1>My Tiered NFT Minter (Arbitrum Testnet)</h1>
-      <p className="subtitle">Connect MetaMask to mint tiered NFTs</p>
+      <p className="subtitle">Connect your wallet to mint tiered NFTs</p>
       <p className="contract">Contract: {CONTRACT_ADDRESS}</p>
 
       {!account ? (
         <div>
-          <button onClick={connectWallet} disabled={loading} className="connect-btn">
+          <button onClick={openWalletSelector} disabled={loading} className="connect-btn">
             {loading ? (
               <>
                 <div className="spinner"></div>
                 Connecting...
               </>
             ) : (
-              'Connect MetaMask'
+              'Connect Wallet'
             )}
           </button>
-          <p className="footer">No MetaMask? <a href="https://metamask.io" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>Install here</a> or use WalletConnect-compatible app (e.g., Trust Wallet).</p>
+          <p className="footer">Supports MetaMask and WalletConnect (mobile).</p>
         </div>
       ) : (
         <div>
@@ -251,8 +308,9 @@ function App() {
             setContract(null);
             setImageUri('');
             setTokenId(null);
+            if (wcProvider) wcProvider.disconnect();  // Disconnect WalletConnect
           }} className="disconnect-btn">
-            Disconnect MetaMask
+            Disconnect Wallet
           </button>
 
           {imageUri && tokenId !== null && (
@@ -261,6 +319,28 @@ function App() {
               <img src={imageUri} alt="Minted NFT" className="nft-image" />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Wallet Selector Modal */}
+      {showWalletSelector && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2 className="modal-title">Choose Your Wallet</h2>
+            <div className="wallet-options">
+              <button onClick={connectMetaMask} className="wallet-btn metamask-btn" disabled={loading}>
+                <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask" className="wallet-icon" />
+                MetaMask (Browser)
+              </button>
+              <button onClick={connectWalletConnect} className="wallet-btn walletconnect-btn" disabled={loading}>
+                <img src="https://raw.githubusercontent.com/WalletConnect/walletconnect-monorepo/master/packages/logo/src/walletconnect-logo-white.svg" alt="WalletConnect" className="wallet-icon" />
+                WalletConnect (Mobile/QR)
+              </button>
+            </div>
+            <button onClick={() => setShowWalletSelector(false)} className="close-modal-btn">
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -284,7 +364,7 @@ function App() {
                 Close
               </button>
             </div>
-            <p className="modal-footer">Refresh MetaMask NFTs tab to see it!</p>
+            <p className="modal-footer">Refresh your wallet NFTs tab to see it!</p>
           </div>
         </div>
       )}

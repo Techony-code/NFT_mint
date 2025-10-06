@@ -236,3 +236,73 @@ select {
 .read-the-docs {
   color: #888;
 }
+/* Wallet Selector Modal */
+.wallet-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.wallet-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 2px solid #ddd;
+  border-radius: 12px;
+  background: white;
+  color: #333;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.wallet-btn:hover {
+  border-color: #667eea;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.wallet-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.metamask-btn {
+  border-color: #f6851b;
+}
+
+.metamask-btn:hover {
+  border-color: #e67717;
+}
+
+.walletconnect-btn {
+  border-color: #3b82f6;
+}
+
+.walletconnect-btn:hover {
+  border-color: #2563eb;
+}
+
+.wallet-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.modal-title {
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+/* Responsive for mobile */
+@media (max-width: 768px) {
+  .wallet-options {
+    flex-direction: column;
+  }
+  
+  .wallet-btn {
+    flex-direction: row;
+  }
+}
